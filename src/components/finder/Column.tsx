@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type { Column as ColumnType, DriveFile } from '../../types';
 import { FileRow } from './FileRow';
 import { useAppStore } from '../../store/appStore';
 import { useDriveAPI } from '../../hooks/useDriveAPI';
+import { ContextMenu } from '../common/ContextMenu';
 
 interface ColumnProps {
     column: ColumnType;
@@ -15,6 +17,12 @@ import { clsx } from 'clsx';
 export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
     const { selectFile, updateColumn } = useAppStore();
     const { openFolder } = useDriveAPI();
+    const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
+
+    const handleHeaderMenuClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setHeaderMenu({ x: e.clientX, y: e.clientY });
+    };
 
     // Make the empty space in the column droppable (targets this folder)
     const { setNodeRef, isOver } = useDroppable({
@@ -40,8 +48,16 @@ export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
     return (
         <div className="flex h-full w-[250px] flex-col border-r border-border bg-bg-secondary flex-shrink-0 animate-slideInRight" data-index={index}>
             {/* Header */}
-            <div className="border-b border-border px-3 py-2 text-xs font-medium text-text-secondary truncate">
-                {column.folderName} ({column.items.length})
+            <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs font-medium text-text-secondary">
+                <span className="truncate flex-1" title={column.folderName}>{column.folderName} ({column.items.length})</span>
+                <button
+                    onClick={handleHeaderMenuClick}
+                    className="ml-2 rounded p-0.5 hover:bg-bg-tertiary focus:outline-none"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" />
+                    </svg>
+                </button>
             </div>
 
             {/* Content */}
@@ -84,6 +100,21 @@ export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
                     </div>
                 )}
             </div>
+            {headerMenu && (
+                <ContextMenu
+                    x={headerMenu.x}
+                    y={headerMenu.y}
+                    onClose={() => setHeaderMenu(null)}
+                    options={[
+                        {
+                            label: 'Open in Google Drive',
+                            action: () => {
+                                window.open(`https://drive.google.com/drive/folders/${column.folderId}`, '_blank');
+                            }
+                        }
+                    ]}
+                />
+            )}
         </div>
     );
 }
