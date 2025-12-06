@@ -1,3 +1,6 @@
+import { DriveFile } from '../types';
+import { useAppStore } from '../store/appStore';
+
 const getAuthHeaders = () => {
     const stored = localStorage.getItem('driveFS_auth');
     if (!stored) throw new Error("No auth token found");

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { clsx } from 'clsx';
+
 import type { DriveFile } from '../../types';
 import { FileIcon } from './FileIcon';
 import { useAppStore } from '../../store/appStore';
