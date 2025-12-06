@@ -1,4 +1,6 @@
-import { DriveFile } from '../types';
+
+import { useAppStore } from '../store/appStore';
+import type { DriveFile } from '../types';
 
 /**
  * Helper to get the token and headers.
@@ -150,6 +152,90 @@ export const moveFile = async (fileId: string, newParentId: string, previousPare
     if (!response.ok) {
         throw new Error(`Drive API Error: ${response.statusText}`);
     }
+};
+
+// Helper to get boundary for multipart
+const generateBoundary = () => {
+    return '-------' + Math.random().toString(36).slice(2);
+};
+
+export const uploadFile = (
+    file: File,
+    folderId: string,
+    onProgress?: (progress: number) => void
+): Promise<DriveFile> => {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const boundary = generateBoundary();
+        const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,iconLink,thumbnailLink,modifiedTime,size,owners,parents';
+
+        xhr.open('POST', url);
+
+        const token = useAppStore.getState().auth.accessToken;
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
+
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && onProgress) {
+                const percentComplete = (event.loaded / event.total) * 100;
+                onProgress(percentComplete);
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    // Map to DriveFile
+                    const f = response as any;
+                    const driveFile: DriveFile = {
+                        ...f,
+                        isFolder: f.mimeType === 'application/vnd.google-apps.folder'
+                    };
+                    resolve(driveFile);
+                } catch (e) {
+                    reject(new Error("Failed to parse upload response"));
+                }
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status} ${xhr.responseText}`));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+
+        const metadata = {
+            name: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            parents: [folderId]
+        };
+
+        // Construct multipart body
+        const delimiter = `\r\n--${boundary}\r\n`;
+        const closeDelimiter = `\r\n--${boundary}--`;
+
+        // Part 1: Metadata
+        let body = delimiter +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(metadata);
+
+        // Part 2: File Content
+        // We can't easily concatenate File/Blob with string in XHR.send unless we use FormData provided logic?
+        // But Google requires multipart/related, not multipart/form-data. FormData uses form-data.
+        // We need to send as Blob or ArrayBuffer if we construct the body manually.
+        // We can create a Blob from the parts.
+
+        body += delimiter +
+            `Content-Type: ${file.type || 'application/octet-stream'}\r\n` +
+            `Content-Transfer-Encoding: binary\r\n\r\n`;
+
+        // Final body construction
+        // We need to combine string -> file data -> string.
+        const footer = closeDelimiter;
+
+        const blob = new Blob([body, file, footer], { type: 'multipart/related' });
+
+        xhr.send(blob);
+    });
 };
 
 export const getPath = async (fileId: string): Promise<DriveFile[]> => {

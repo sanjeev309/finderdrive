@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Column, Theme, AuthState } from '../types';
+import type { Column, Theme, AuthState, DriveFile } from '../types';
+
+interface UploadItem {
+    id: string;
+    items: File[];
+    status: 'pending' | 'uploading' | 'completed' | 'error';
+    progress: number;
+}
 
 interface AppState {
     // Auth
@@ -23,12 +30,20 @@ interface AppState {
     selectedFileIds: Set<string>;
     selectFile: (id: string, multi: boolean) => void;
     deselectAll: () => void;
+
     // Mutual Exclusion for Drag & Drop
     activeDragId: string | null;
     setActiveDragId: (id: string | null) => void;
 
     // Actions
-    refreshFolder: (folderId: string, files: any[]) => void;
+    refreshFolder: (folderId: string, files: DriveFile[]) => void;
+
+    // Uploads
+    uploadQueue: UploadItem[];
+    addUpload: (item: UploadItem) => void;
+    updateUploadProgress: (id: string, progress: number) => void;
+    completeUpload: (id: string, status: 'completed' | 'error') => void;
+    removeUpload: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -36,20 +51,36 @@ export const useAppStore = create<AppState>()(
         (set) => ({
             // Auth Initial State
             auth: {
-                isAuthenticated: false,
-                user: null,
-                accessToken: null,
+                isAuthenticated: !!localStorage.getItem('driveFS_auth'),
+                user: JSON.parse(localStorage.getItem('driveFS_user') || 'null'),
+                accessToken: JSON.parse(localStorage.getItem('driveFS_auth') || '{}').access_token,
                 expiresAt: null,
             },
-            setAuth: (updates) => set((state) => ({ auth: { ...state.auth, ...updates } })),
-            logout: () => set({
-                auth: { isAuthenticated: false, user: null, accessToken: null, expiresAt: null },
-                columns: [], // Clear sensitive data
+            setAuth: (auth) => set((state) => {
+                const newAuth = { ...state.auth, ...auth };
+                if (auth.accessToken) {
+                    localStorage.setItem('driveFS_auth', JSON.stringify({ access_token: auth.accessToken }));
+                }
+                if (auth.user) {
+                    localStorage.setItem('driveFS_user', JSON.stringify(auth.user));
+                }
+                return { auth: newAuth };
             }),
+            logout: () => {
+                localStorage.removeItem('driveFS_auth');
+                localStorage.removeItem('driveFS_user');
+                set({
+                    auth: { isAuthenticated: false, user: null, accessToken: null, expiresAt: null },
+                    columns: [],
+                });
+            },
 
             // Theme Initial State
             theme: { mode: 'light' },
-            setTheme: (mode) => set({ theme: { mode } }),
+            setTheme: (mode) => {
+                localStorage.setItem('driveFS_theme', mode);
+                set({ theme: { mode } });
+            },
 
             // Columns Initial State
             columns: [],
@@ -65,9 +96,9 @@ export const useAppStore = create<AppState>()(
             })),
 
             // Selection
-            selectedFileIds: new Set(),
+            selectedFileIds: new Set<string>(),
             selectFile: (id, multi) => set((state) => {
-                const newSet = new Set(multi ? state.selectedFileIds : []);
+                const newSet = multi ? new Set<string>(state.selectedFileIds) : new Set<string>();
                 if (newSet.has(id)) {
                     newSet.delete(id);
                 } else {
@@ -75,7 +106,7 @@ export const useAppStore = create<AppState>()(
                 }
                 return { selectedFileIds: newSet };
             }),
-            deselectAll: () => set({ selectedFileIds: new Set() }),
+            deselectAll: () => set({ selectedFileIds: new Set<string>() }),
 
             // Drag & Drop
             activeDragId: null,
@@ -87,11 +118,27 @@ export const useAppStore = create<AppState>()(
                     col.folderId === folderId ? { ...col, items: files } : col
                 )
             })),
+
+            // Upload Actions
+            uploadQueue: [],
+            addUpload: (item) => set((state) => ({ uploadQueue: [...state.uploadQueue, item] })),
+
+            updateUploadProgress: (id, progress) => set((state) => ({
+                uploadQueue: state.uploadQueue.map(u => u.id === id ? { ...u, progress } : u)
+            })),
+
+            completeUpload: (id, status) => set((state) => ({
+                uploadQueue: state.uploadQueue.map(u => u.id === id ? { ...u, status, progress: status === 'completed' ? 100 : u.progress } : u)
+            })),
+
+            removeUpload: (id) => set((state) => ({
+                uploadQueue: state.uploadQueue.filter(u => u.id !== id)
+            })),
         }),
         {
             name: 'finderdrive-storage',
-            partialize: (state) => ({ theme: state.theme }), // Only persist theme
-            version: 1, // Invalidates old storage to clear potential bad state
+            partialize: (state) => ({ theme: state.theme }),
+            version: 1,
         }
     )
 );

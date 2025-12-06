@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
-import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles, getPath } from '../lib/drive';
+import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles, getPath, uploadFile } from '../lib/drive';
 import { getCachedFolder, setCachedFolder, invalidateFolder } from '../lib/db';
 import type { Column, DriveFile } from '../types';
 
@@ -248,7 +248,7 @@ export function useDriveAPI() {
             // We should only create columns for folders.
             // If the last item is a file, we select it in the second-to-last column.
 
-            const columnsToAdd: Column[] = [];
+
 
             // We start appending from the current end of columns
             // But `addColumn` adds one by one. `setColumns` replaces. 
@@ -316,5 +316,49 @@ export function useDriveAPI() {
         }
     }, [addColumn, fetchAndCache]);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath };
+    const uploadFiles = useCallback(async (files: File[], folderId: string) => {
+        const { addUpload, updateUploadProgress, completeUpload, columns, refreshFolder } = useAppStore.getState();
+
+        for (const file of files) {
+            const uploadId = crypto.randomUUID();
+
+            // 1. Add to Queue
+            addUpload({
+                id: uploadId,
+                items: [file], // wrapper for now
+                status: 'pending',
+                progress: 0
+            });
+
+            // 2. Start Upload
+            // Update to uploading
+            useAppStore.getState().updateUploadProgress(uploadId, 0);
+
+            try {
+                // Actually calling the API
+                const uploadedFile = await uploadFile(file, folderId, (progress) => {
+                    updateUploadProgress(uploadId, progress);
+                });
+
+                completeUpload(uploadId, 'completed');
+
+                // 3. Refresh Folder if visible
+                // Check if any column is showing this folder
+                const col = columns.find(c => c.folderId === folderId);
+                if (col) {
+                    // We append the new file to the existing items to avoid full reload
+                    const newItems = [...col.items, uploadedFile];
+                    refreshFolder(folderId, newItems);
+                    // Update cache
+                    setCachedFolder(folderId, newItems);
+                }
+
+            } catch (error) {
+                console.error("Upload failed", error);
+                completeUpload(uploadId, 'error');
+            }
+        }
+    }, []);
+
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath, uploadFiles };
 }
