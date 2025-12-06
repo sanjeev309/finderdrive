@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
-import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI } from '../lib/drive';
+import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles } from '../lib/drive';
 import { getCachedFolder, setCachedFolder, invalidateFolder } from '../lib/db';
 import type { Column } from '../types';
 
@@ -223,5 +223,14 @@ export function useDriveAPI() {
         }
     }, []);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile };
+    const searchDrive = useCallback(async (query: string) => {
+        try {
+            return await searchFiles(query);
+        } catch (error) {
+            console.error("Search failed", error);
+            return [];
+        }
+    }, []);
+
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive };
 }

@@ -1,11 +1,82 @@
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
-// import { clsx } from 'clsx';
+import { useDriveAPI } from '../../hooks/useDriveAPI';
+import type { DriveFile } from '../../types';
+import { FileIcon } from '../finder/FileIcon';
+
+// simple debounce utility
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+}
 
 export function TopBar() {
-    const { auth, logout } = useAppStore();
+    const { auth, logout, columns } = useAppStore();
+    const { searchDrive, openFolder } = useDriveAPI();
+
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<DriveFile[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showResults, setShowResults] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    const debouncedQuery = useDebounce(query, 300);
+
+    useEffect(() => {
+        async function performSearch() {
+            if (debouncedQuery.trim().length === 0) {
+                setResults([]);
+                return;
+            }
+
+            setIsSearching(true);
+            const files = await searchDrive(debouncedQuery);
+            setResults(files);
+            setIsSearching(false);
+            setShowResults(true);
+        }
+
+        performSearch();
+    }, [debouncedQuery, searchDrive]);
+
+    // Close on click outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setShowResults(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [wrapperRef]);
+
+    const handleResultClick = (file: DriveFile) => {
+        setShowResults(false);
+        setQuery(''); // Optional: clear search on selection
+
+        if (file.isFolder) {
+            // Open folder directly
+            openFolder(file.id, file.name, columns.length);
+        } else {
+            // It's a file. Open parent folder and select it.
+            if (file.parents && file.parents.length > 0) {
+                const parentId = file.parents[0];
+                openFolder(parentId, "Folder", columns.length).then(() => {
+                    // Select the file after folder opens
+                    useAppStore.getState().selectFile(file.id, false);
+                });
+            }
+        }
+    };
 
     return (
-        <div className="flex h-16 items-center justify-between border-b border-border bg-bg-secondary px-4 shadow-sm">
+        <div className="flex h-16 items-center justify-between border-b border-border bg-bg-secondary px-4 shadow-sm relative z-20">
             {/* Left: Breadcrumbs (Placeholder) */}
             <div className="flex items-center space-x-2 text-text-secondary">
                 <span className="font-medium text-text-primary">My Drive</span>
@@ -13,14 +84,61 @@ export function TopBar() {
             </div>
 
             {/* Center: Search */}
-            <div className="mx-4 flex-1 max-w-xl">
+            <div className="mx-4 flex-1 max-w-xl relative" ref={wrapperRef}>
                 <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <svg className="h-5 w-5 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
                     <input
                         type="text"
                         placeholder="Search in Drive..."
-                        className="w-full rounded-lg border border-border bg-bg-primary px-4 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        className="w-full rounded-lg border border-border bg-bg-primary pl-10 pr-4 py-2 text-text-primary placeholder:text-text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={query}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            if (e.target.value.trim()) setShowResults(true);
+                        }}
+                        onFocus={() => {
+                            if (query.trim()) setShowResults(true);
+                        }}
                     />
+                    {isSearching && (
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <svg className="animate-spin h-4 w-4 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    )}
                 </div>
+
+                {/* Dropdown Results */}
+                {showResults && query.trim().length > 0 && (
+                    <div className="absolute mt-1 w-full overflow-hidden rounded-md border border-border bg-bg-secondary shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none max-h-96 overflow-y-auto">
+                        {results.length === 0 && !isSearching ? (
+                            <div className="px-4 py-3 text-sm text-text-secondary">No results found.</div>
+                        ) : (
+                            <ul className="py-1">
+                                {results.map((file) => (
+                                    <li
+                                        key={file.id}
+                                        className="cursor-pointer px-4 py-2 hover:bg-bg-primary flex items-center space-x-3 group"
+                                        onClick={() => handleResultClick(file)}
+                                    >
+                                        <FileIcon file={file} className="h-5 w-5 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="truncate text-sm font-medium text-text-primary group-hover:text-accent">
+                                                {file.name}
+                                            </p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Right: Actions & Profile */}
