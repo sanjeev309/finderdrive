@@ -147,6 +147,27 @@ export function useDriveAPI() {
         init();
     }, [auth.isAuthenticated, addColumn, fetchAndCache]);
 
+    const navigateToRoot = useCallback((rootId: string, name: string) => {
+        // Clear existing columns
+        useAppStore.getState().setColumns([]);
+
+        const columnId = crypto.randomUUID();
+        const newColumn: Column = {
+            id: columnId,
+            folderId: rootId,
+            folderName: name,
+            items: [],
+            selectedItemId: null,
+            isLoading: true,
+            loadTime: 0,
+            error: null,
+        };
+
+        // Add new root column
+        addColumn(newColumn);
+        fetchAndCache(rootId, columnId);
+    }, [addColumn, fetchAndCache]);
+
     const moveFile = useCallback(async (fileId: string, targetFolderId: string, sourceFolderId: string) => {
         try {
             await moveFileAPI(fileId, targetFolderId, sourceFolderId);
@@ -360,5 +381,5 @@ export function useDriveAPI() {
         }
     }, []);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath, uploadFiles };
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath, uploadFiles, navigateToRoot };
 }

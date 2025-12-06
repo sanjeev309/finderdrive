@@ -56,8 +56,18 @@ export const listFiles = async (folderId: string): Promise<DriveFile[]> => {
     const headers = getAuthHeaders();
 
     // Construct query parameters
+    const isSharedWithMe = folderId === 'shared-with-me';
+    const isTrash = folderId === 'trash';
+
+    let q = `'${folderId}' in parents and trashed = false`;
+    if (isSharedWithMe) {
+        q = 'sharedWithMe = true and trashed = false';
+    } else if (isTrash) {
+        q = 'trashed = true';
+    }
+
     const params = new URLSearchParams({
-        q: `'${folderId}' in parents and trashed = false`,
+        q,
         fields: 'files(id, name, mimeType, iconLink, thumbnailLink, modifiedTime, size, owners, webViewLink, parents)',
         orderBy: 'folder,name',
         pageSize: '1000'

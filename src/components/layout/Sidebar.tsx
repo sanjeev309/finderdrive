@@ -1,12 +1,20 @@
 import { clsx } from 'clsx';
 import { useAppStore } from '../../store/appStore';
+import { useDriveAPI } from '../../hooks/useDriveAPI';
 
 export function Sidebar() {
-    const { theme } = useAppStore(); // Keeping theme for future use or just ignore lint line
-    console.log(theme); // Usage to silence lint for now until theme implementation
-    // Or just remove usage:
-    // const {} = useAppStore();
+    const { navigateToRoot } = useDriveAPI();
+    const columns = useAppStore((state) => state.columns);
 
+    // Determine active section
+    // default to My Drive (root) if no columns or first column is root
+    // shared-with-me if first column is shared-with-me
+    const firstCol = columns[0];
+    const activeSection = firstCol?.folderId === 'shared-with-me'
+        ? 'shared-with-me'
+        : firstCol?.folderId === 'trash'
+            ? 'trash'
+            : 'my-drive';
 
     return (
         <aside className="w-56 flex-shrink-0 flex-col border-r border-border bg-bg-secondary pt-4">
@@ -17,20 +25,20 @@ export function Sidebar() {
                     <SidebarItem
                         icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>}
                         label="My Drive"
-                        isActive={true}
-                        onClick={() => { }}
+                        isActive={activeSection === 'my-drive'}
+                        onClick={() => navigateToRoot('root', 'My Drive')}
                     />
                     <SidebarItem
                         icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
                         label="Shared with me"
-                        isActive={false}
-                        onClick={() => { }}
+                        isActive={activeSection === 'shared-with-me'}
+                        onClick={() => navigateToRoot('shared-with-me', 'Shared with me')}
                     />
                     <SidebarItem
                         icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
                         label="Trash"
-                        isActive={false}
-                        onClick={() => { }}
+                        isActive={activeSection === 'trash'}
+                        onClick={() => navigateToRoot('trash', 'Trash')}
                     />
                 </div>
             </div>
