@@ -9,11 +9,12 @@ import { DriveFile } from '../../types';
 import { ContextMenu } from '../common/ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
+import { NewFolderModal } from '../modals/NewFolderModal';
 
 export function ColumnView() {
     const { columns, activeDragId, setActiveDragId, selectFile, updateColumn } = useAppStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const { moveFile, renameFile, deleteFile, openFolder } = useDriveAPI();
+    const { moveFile, renameFile, deleteFile, openFolder, createFolder } = useDriveAPI();
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file: DriveFile } | null>(null);
@@ -34,7 +35,8 @@ export function ColumnView() {
     const prevColumnsLength = useRef(columns.length);
 
     // Modal State
-    const [modalState, setModalState] = useState<{ type: 'rename' | 'delete', file: DriveFile } | null>(null);
+    // Extended to support target folder ID directly for header actions (optional refactor later)
+    const [modalState, setModalState] = useState<{ type: 'rename' | 'delete', file: DriveFile } | { type: 'new-folder', file?: DriveFile, folderId?: string } | null>(null);
 
     // Sync Active Column
     useEffect(() => {
@@ -257,6 +259,10 @@ export function ColumnView() {
                             danger: true
                         },
                         { label: 'Get Info', action: () => window.open(contextMenu.file.webViewLink, '_blank') },
+                        {
+                            label: 'New Folder',
+                            action: () => setModalState({ type: 'new-folder', file: contextMenu.file })
+                        }
                     ]}
                 />
             )}
@@ -277,6 +283,41 @@ export function ColumnView() {
                 fileName={modalState?.file.name || ''}
                 onDelete={() => {
                     if (modalState?.file) deleteFile(modalState.file.id);
+                }}
+            />
+
+            <NewFolderModal
+                isOpen={modalState?.type === 'new-folder'}
+                onClose={() => setModalState(null)}
+                onCreate={(name) => {
+                    if (modalState?.file) { // contextMenu.file here is essentially the trigger or we need parentId?
+                        // Issue: contextMenu.file might be a file inside the folder, or the folder itself?
+                        // If we right clicked *on a file*, we usually want to create in the *current column* (folder).
+                        // If we right click on blank space? We don't have that yet (header menu only).
+                        // The header context menu passes the *folder* of the column.
+                        // But we also have item context menu.
+                        // Let's assume we use the Header Context Menu for "New Folder".
+                        // Wait, Column.tsx has Header Menu. ColumnView.tsx has Item Context Menu.
+
+                        // We need to differentiate or allow new folder from item menu (creating in same dir).
+                        // Let's assume for now we want to support it. 
+                        // If we are passed a file, usage implies "in the same folder as this file".
+
+                        // BUT: contextMenu state in ColumnView stores `file: DriveFile`.
+                        // We need to know the *parent* ID.
+                        // If we right clicked a file, its parent is the column's folderId.
+                        // We can find the column that contains this file.
+
+                        // Optimization: Store columnId or folderId in contextMenu state? 
+                        // Or just look it up.
+                        const col = columns.find(c => c.items.some(i => i.id === modalState.file.id));
+                        if (col) {
+                            createFolder(name, col.folderId);
+                        }
+                    } else if (modalState?.folderId) {
+                        // Fallback if we add support for passing generic folderId
+                        createFolder(name, modalState.folderId);
+                    }
                 }}
             />
         </DndContext>

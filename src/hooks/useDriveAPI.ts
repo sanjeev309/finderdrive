@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
-import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles, getPath, uploadFile } from '../lib/drive';
+import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles, getPath, uploadFile, createFolder as createFolderAPI } from '../lib/drive';
 import { getCachedFolder, setCachedFolder, invalidateFolder } from '../lib/db';
 import type { Column, DriveFile } from '../types';
 
@@ -381,5 +381,30 @@ export function useDriveAPI() {
         }
     }, []);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath, uploadFiles, navigateToRoot };
+    const createFolder = useCallback(async (name: string, parentId: string) => {
+        try {
+            const newFolder = await createFolderAPI(name, parentId);
+
+            // Update local state
+            const columns = useAppStore.getState().columns;
+            const parentCol = columns.find(c => c.folderId === parentId);
+
+            if (parentCol) {
+                const newItems = [...parentCol.items, newFolder];
+                // Sort? Finder usually sorts by name.
+                // For now just append.
+                useAppStore.getState().refreshFolder(parentId, newItems);
+
+                // Update Cache
+                await setCachedFolder(parentId, newItems);
+            }
+
+            return newFolder;
+        } catch (error) {
+            console.error("Create folder failed", error);
+            throw error;
+        }
+    }, []);
+
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, createFolder, searchDrive, openPath, uploadFiles, navigateToRoot };
 }

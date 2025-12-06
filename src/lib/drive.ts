@@ -164,6 +164,32 @@ export const moveFile = async (fileId: string, newParentId: string, previousPare
     }
 };
 
+export const createFolder = async (name: string, parentId: string): Promise<DriveFile> => {
+    const headers = getAuthHeaders();
+
+    const fileMetadata = {
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId]
+    };
+
+    const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,mimeType,iconLink,thumbnailLink,modifiedTime,size,owners,parents,webViewLink', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(fileMetadata)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Drive API Error: ${response.statusText}`);
+    }
+
+    const file = await response.json();
+    return {
+        ...file,
+        isFolder: true
+    } as DriveFile;
+};
+
 // Helper to get boundary for multipart
 const generateBoundary = () => {
     return '-------' + Math.random().toString(36).slice(2);
