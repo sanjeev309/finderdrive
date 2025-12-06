@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ContextMenuProps {
@@ -14,12 +14,27 @@ interface ContextMenuProps {
 
 export function ContextMenu({ x, y, options, onClose }: ContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
+    const [style, setStyle] = useState({ top: y, left: x, opacity: 0 });
 
-    // Initial positioning to prevent overflow (simplistic)
-    const style = {
-        top: y,
-        left: x,
-    };
+    useLayoutEffect(() => {
+        if (menuRef.current) {
+            const rect = menuRef.current.getBoundingClientRect();
+            let newTop = y;
+            let newLeft = x;
+
+            // Check bottom edge
+            if (y + rect.height > window.innerHeight) {
+                newTop = y - rect.height;
+            }
+
+            // Check right edge
+            if (x + rect.width > window.innerWidth) {
+                newLeft = x - rect.width;
+            }
+
+            setStyle({ top: newTop, left: newLeft, opacity: 1 });
+        }
+    }, [x, y]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -43,8 +58,8 @@ export function ContextMenu({ x, y, options, onClose }: ContextMenuProps) {
     return createPortal(
         <div
             ref={menuRef}
-            className="fixed z-50 min-w-[160px] flex-col rounded-lg border border-border bg-bg-secondary py-1 shadow-lg animate-fadeIn"
-            style={style}
+            className="fixed z-50 min-w-[160px] flex-col rounded-lg border border-border bg-bg-secondary py-1 shadow-lg"
+            style={{ top: style.top, left: style.left, opacity: style.opacity }}
         >
             {options.map((option, index) => (
                 <button
