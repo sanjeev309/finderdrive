@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
-import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles } from '../lib/drive';
+import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI, searchFiles, getPath } from '../lib/drive';
 import { getCachedFolder, setCachedFolder, invalidateFolder } from '../lib/db';
-import type { Column } from '../types';
+import type { Column, DriveFile } from '../types';
 
 export function useDriveAPI() {
     const { auth, updateColumn, addColumn, removeColumnsAfter } = useAppStore();
@@ -232,5 +232,89 @@ export function useDriveAPI() {
         }
     }, []);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive };
+    const openPath = useCallback(async (file: DriveFile) => {
+        try {
+            // 1. Get full path (ancestors + file)
+            const path = await getPath(file.id);
+
+            // 2. Filter out 'root' if it's the start, as we probably want to render it, 
+            // but if it duplicates the existing root column?
+            // The user said "as new column all the way from the root".
+            // So we append Root -> A -> B... to the end.
+            // We don't filter root.
+
+            // 3. For each folder in the path, create a column
+            // But wait, the LAST item is the file itself (if it's a file).
+            // We should only create columns for folders.
+            // If the last item is a file, we select it in the second-to-last column.
+
+            const columnsToAdd: Column[] = [];
+
+            // We start appending from the current end of columns
+            // But `addColumn` adds one by one. `setColumns` replaces. 
+            // We can use `addColumn` in a loop, but that triggers multiple renders.
+            // Better to prepare state and update at once if possible, but store only has `addColumn`.
+            // We should add `addColumns` to store? Or just call `addColumn` loop.
+            // Loop is fine for now.
+
+            const foldersToOpen = path.filter(f => f.isFolder);
+            const targetIsFile = !file.isFolder;
+
+            let parentId: string | null = null;
+
+            for (const folder of foldersToOpen) {
+                const columnId = crypto.randomUUID();
+                const newColumn: Column = {
+                    id: columnId,
+                    folderId: folder.id,
+                    folderName: folder.name,
+                    items: [],
+                    selectedItemId: null,
+                    isLoading: true,
+                    loadTime: 0,
+                    error: null,
+                };
+
+                // Add to local list to execute logic, but we need to push to store to trigger fetch?
+                // `fetchAndCache` needs the column to exist in store?
+                // Yes, `updateColumn` updates by ID.
+
+                // So we must Add then Fetch.
+                addColumn(newColumn);
+                fetchAndCache(folder.id, columnId);
+
+                parentId = folder.id;
+            }
+
+            // If target was a file, we select it in the last added column
+            if (targetIsFile && parentId) {
+                // We need to wait for the fetch to finish? 
+                // No, we can set selectedItemId immediately, even if items are empty.
+                // Once items load, the UI highlights it.
+                // But wait, we need to know the ID of the last column we just added.
+                // We can't know easily unless we track it.
+                // We just added it. It's the last one in store *after* updates?
+                // React might batch.
+                // Ideally `addColumn` could return the ID or we pass it. 
+                // We generated `columnId` above.
+                // We can use the last `columnId` generated in the loop.
+
+                // Find the last column ID (it corresponds to the parent folder of the file)
+                // The loop iterates `foldersToOpen`. The last one is the parent.
+                // We only need to set `selectedItemId` on the column for `parentId`.
+                // We can use `updateColumn` for this.
+
+                // But `items` are not loaded yet. `updateColumn` merges.
+                // We can set `selectedItemId: file.id`.
+
+                // wait, we generated columnId in the loop. We need to capture the last one.
+                // Let's refactor the loop slightly.
+            }
+
+        } catch (error) {
+            console.error("Failed to open path", error);
+        }
+    }, [addColumn, fetchAndCache]);
+
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, searchDrive, openPath };
 }

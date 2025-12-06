@@ -18,7 +18,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function TopBar() {
     const { auth, logout, columns } = useAppStore();
-    const { searchDrive, openFolder } = useDriveAPI();
+    const { searchDrive, openPath } = useDriveAPI();
 
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<DriveFile[]>([]);
@@ -58,21 +58,10 @@ export function TopBar() {
 
     const handleResultClick = (file: DriveFile) => {
         setShowResults(false);
-        setQuery(''); // Optional: clear search on selection
+        setQuery('');
 
-        if (file.isFolder) {
-            // Open folder directly
-            openFolder(file.id, file.name, columns.length);
-        } else {
-            // It's a file. Open parent folder and select it.
-            if (file.parents && file.parents.length > 0) {
-                const parentId = file.parents[0];
-                openFolder(parentId, "Folder", columns.length).then(() => {
-                    // Select the file after folder opens
-                    useAppStore.getState().selectFile(file.id, false);
-                });
-            }
-        }
+        // New Logic: Open full path
+        openPath(file);
     };
 
     return (
