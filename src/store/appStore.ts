@@ -44,6 +44,11 @@ interface AppState {
     updateUploadProgress: (id: string, progress: number) => void;
     completeUpload: (id: string, status: 'completed' | 'error') => void;
     removeUpload: (id: string) => void;
+
+    // Preview Pane
+    showPreviewPane: boolean;
+    togglePreviewPane: () => void;
+    setShowPreviewPane: (show: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -134,10 +139,14 @@ export const useAppStore = create<AppState>()(
             removeUpload: (id) => set((state) => ({
                 uploadQueue: state.uploadQueue.filter(u => u.id !== id)
             })),
+
+            showPreviewPane: true,
+            togglePreviewPane: () => set((state) => ({ showPreviewPane: !state.showPreviewPane })),
+            setShowPreviewPane: (show) => set({ showPreviewPane: show }),
         }),
         {
             name: 'finderdrive-storage',
-            partialize: (state) => ({ theme: state.theme }),
+            partialize: (state) => ({ theme: state.theme, showPreviewPane: state.showPreviewPane }), // Persist
             version: 1,
         }
     )

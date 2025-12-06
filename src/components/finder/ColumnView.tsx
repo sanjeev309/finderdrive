@@ -8,13 +8,14 @@ import { FileRow } from './FileRow';
 import { DriveFile } from '../../types';
 import { ContextMenu } from '../common/ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
-import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
+import { ActionConfirmModal } from '../modals/ActionConfirmModal';
 import { NewFolderModal } from '../modals/NewFolderModal';
+import { PreviewPane } from './PreviewPane';
 
 export function ColumnView() {
-    const { columns, activeDragId, setActiveDragId, selectFile, updateColumn } = useAppStore();
+    const { columns, activeDragId, setActiveDragId, selectFile, updateColumn, showPreviewPane, togglePreviewPane, setShowPreviewPane } = useAppStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const { moveFile, renameFile, deleteFile, openFolder, createFolder } = useDriveAPI();
+    const { moveFile, renameFile, deleteFile, openFolder, createFolder, copyFile } = useDriveAPI();
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, file: DriveFile } | null>(null);
@@ -36,7 +37,13 @@ export function ColumnView() {
 
     // Modal State
     // Extended to support target folder ID directly for header actions (optional refactor later)
-    const [modalState, setModalState] = useState<{ type: 'rename' | 'delete', file: DriveFile } | { type: 'new-folder', file?: DriveFile, folderId?: string } | null>(null);
+    const [modalState, setModalState] = useState<{
+        type: 'rename' | 'delete' | 'move-confirm' | 'copy-confirm' | 'new-folder',
+        file?: DriveFile,
+        targetId?: string, // for move/copy
+        sourceId?: string,  // for move
+        folderId?: string // for new folder
+    } | null>(null);
 
     // Sync Active Column
     useEffect(() => {
@@ -169,7 +176,14 @@ export function ColumnView() {
                 // Prevent moving into itself or immediate parent (redundant)
                 if (targetId !== sourceFolderId && targetId !== fileId) {
                     console.log(`Moving ${fileId} to ${targetId}`);
-                    await moveFile(fileId, targetId, sourceFolderId);
+                    // await moveFile(fileId, targetId, sourceFolderId);
+                    // Confirm Move
+                    setModalState({
+                        type: 'move-confirm',
+                        file: draggedFile,
+                        targetId: targetId,
+                        sourceId: sourceFolderId
+                    });
                 }
             }
         }
@@ -199,127 +213,195 @@ export function ColumnView() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
-            <div
-                ref={scrollContainerRef}
-                className="flex h-full w-full overflow-x-auto overflow-y-hidden bg-bg-secondary"
-            >
-                {columns.map((col, index) => (
-                    <Column
-                        key={col.id}
-                        column={col}
-                        index={index}
-                        isActive={index === activeColIndex}
-                        onActivate={() => setActiveColIndex(index)}
-                        onOpenContextMenu={handleOpenContextMenu}
-                    />
-                ))}
+            <div className="flex h-full w-full overflow-hidden">
+                <div
+                    ref={scrollContainerRef}
+                    className="flex flex-1 h-full overflow-x-auto overflow-y-hidden bg-bg-secondary"
+                >
+                    {columns.map((col, index) => (
+                        <Column
+                            key={col.id}
+                            column={col}
+                            index={index}
+                            isActive={index === activeColIndex}
+                            onActivate={() => setActiveColIndex(index)}
+                            onOpenContextMenu={handleOpenContextMenu}
+                        />
+                    ))}
 
-                {/* Spacer or loading indicator */}
-                {columns.length === 0 && (
-                    <div className="flex h-full w-full items-center justify-center text-text-secondary">
-                        Loading Drive...
-                    </div>
+                    {/* Spacer or loading indicator */}
+                    {columns.length === 0 && (
+                        <div className="flex h-full w-full items-center justify-center text-text-secondary">
+                            Loading Drive...
+                        </div>
+                    )}
+                </div>
+
+                {/* Floating Preview Toggle (when pane is closed) */}
+                {!showPreviewPane && columns.length > 0 && (
+                    <button
+                        onClick={togglePreviewPane}
+                        className="absolute top-4 right-4 z-50 rounded-full p-2 bg-bg-tertiary/90 backdrop-blur-md border border-border text-text-secondary hover:text-text-primary hover:bg-bg-primary shadow-lg active:scale-95 transition-all"
+                        title="Show Preview Pane"
+                    >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                    </button>
+                )}
+
+                {/* Floating Preview Toggle (when pane is closed) */}
+
+
+                {createPortal(
+                    <DragOverlay>
+                        {activeItem ? (
+                            <div className="opacity-80">
+                                <FileRow
+                                    file={activeItem}
+                                    isSelected={false}
+                                    onClick={() => { }}
+                                    onDoubleClick={() => { }}
+                                    onContextMenu={() => { }}
+                                />
+                            </div>
+                        ) : null}
+                    </DragOverlay>,
+                    document.body
+                )}
+
+                {contextMenu && (
+                    <ContextMenu
+                        x={contextMenu.x}
+                        y={contextMenu.y}
+                        onClose={handleCloseContextMenu}
+                        options={[
+                            {
+                                label: 'Preview',
+                                action: () => setShowPreviewPane(true)
+                            },
+                            {
+                                label: 'Rename',
+                                action: () => {
+                                    setModalState({ type: 'rename', file: contextMenu.file });
+                                }
+                            },
+                            {
+                                label: 'Delete',
+                                action: () => {
+                                    setModalState({ type: 'delete', file: contextMenu.file });
+                                },
+                                danger: true
+                            },
+                            {
+                                label: 'Copy',
+                                action: () => {
+                                    setModalState({ type: 'copy-confirm', file: contextMenu.file });
+                                }
+                            },
+                            { label: 'Get Info', action: () => window.open(contextMenu.file.webViewLink, '_blank') },
+                            {
+                                label: 'New Folder',
+                                action: () => setModalState({ type: 'new-folder', file: contextMenu.file })
+                            }
+                        ]}
+                    />
+                )}
+
+                {/* Modals */}
+                <RenameModal
+                    isOpen={modalState?.type === 'rename'}
+                    onClose={() => setModalState(null)}
+                    currentName={modalState?.file?.name || ''}
+                    onRename={(newName) => {
+                        if (modalState?.file) renameFile(modalState.file.id, newName);
+                    }}
+                />
+
+                <ActionConfirmModal
+                    isOpen={modalState?.type === 'delete'}
+                    onClose={() => setModalState(null)}
+                    title="Delete File?"
+                    message={
+                        <span>Are you sure you want to delete <span className="font-medium text-text-primary">"{modalState?.file?.name}"</span>? This action cannot be undone.</span>
+                    }
+                    confirmLabel="Delete"
+                    confirmVariant="danger"
+                    onConfirm={() => {
+                        if (modalState?.file) deleteFile(modalState.file.id);
+                    }}
+                />
+
+                <ActionConfirmModal
+                    isOpen={modalState?.type === 'move-confirm'}
+                    onClose={() => setModalState(null)}
+                    title="Move Item?"
+                    message={
+                        <span>Are you sure you want to move <span className="font-medium text-text-primary">"{modalState?.file?.name}"</span>?</span>
+                    }
+                    confirmLabel="Move"
+                    onConfirm={() => {
+                        if (modalState?.file && modalState.targetId && modalState.sourceId) {
+                            moveFile(modalState.file.id, modalState.targetId, modalState.sourceId);
+                        }
+                    }}
+                />
+
+                <ActionConfirmModal
+                    isOpen={modalState?.type === 'copy-confirm'}
+                    onClose={() => setModalState(null)}
+                    title="Copy Item?"
+                    message={
+                        <span>Are you sure you want to copy <span className="font-medium text-text-primary">"{modalState?.file?.name}"</span>?</span>
+                    }
+                    confirmLabel="Copy"
+                    onConfirm={() => {
+                        if (modalState?.file) {
+                            // Default to same folder (copy) logic if needed, or ask for target?
+                            // Copy usually implies copying TO somewhere. But Finder "Duplicate" is same folder. "Copy" puts in clipboard.
+                            // User requirement: "same for move and copy as well".
+                            // Move is drag-drop. Copy is probably "Make a copy" in place?
+                            // drive.ts copyFile takes parentId.
+                            // If triggered from context menu on file, we probably duplicate it in same folder?
+                            // Or we can assume we duplicate it in parent.
+                            // We need to know parent. 'file' objects returned from API have 'parents'.
+                            if (modalState.file.parents && modalState.file.parents.length > 0) {
+                                copyFile(modalState.file.id, modalState.file.parents[0], `Copy of ${modalState.file.name}`);
+                            }
+                        }
+                    }}
+                />
+
+                <NewFolderModal
+                    isOpen={modalState?.type === 'new-folder'}
+                    onClose={() => setModalState(null)}
+                    onCreate={(name) => {
+                        if (modalState?.type === 'new-folder') {
+                            if (modalState.file) {
+                                const col = columns.find(c => c.items.some(i => i.id === modalState.file!.id));
+                                if (col) {
+                                    createFolder(name, col.folderId);
+                                }
+                            } else if (modalState.folderId) {
+                                createFolder(name, modalState.folderId);
+                            }
+                        }
+                    }}
+                />
+
+                {columns.length > 0 && showPreviewPane && (
+                    <PreviewPane file={
+                        (() => {
+                            const activeCol = columns[activeColIndex];
+                            if (activeCol?.selectedItemId) {
+                                return activeCol.items.find(i => i.id === activeCol.selectedItemId) || null;
+                            }
+                            return null;
+                        })()
+                    } />
                 )}
             </div>
-
-            {createPortal(
-                <DragOverlay>
-                    {activeItem ? (
-                        <div className="opacity-80">
-                            <FileRow
-                                file={activeItem}
-                                isSelected={false}
-                                onClick={() => { }}
-                                onDoubleClick={() => { }}
-                                onContextMenu={() => { }}
-                            />
-                        </div>
-                    ) : null}
-                </DragOverlay>,
-                document.body
-            )}
-
-            {contextMenu && (
-                <ContextMenu
-                    x={contextMenu.x}
-                    y={contextMenu.y}
-                    onClose={handleCloseContextMenu}
-                    options={[
-                        {
-                            label: 'Rename',
-                            action: () => {
-                                setModalState({ type: 'rename', file: contextMenu.file });
-                            }
-                        },
-                        {
-                            label: 'Delete',
-                            action: () => {
-                                setModalState({ type: 'delete', file: contextMenu.file });
-                            },
-                            danger: true
-                        },
-                        { label: 'Get Info', action: () => window.open(contextMenu.file.webViewLink, '_blank') },
-                        {
-                            label: 'New Folder',
-                            action: () => setModalState({ type: 'new-folder', file: contextMenu.file })
-                        }
-                    ]}
-                />
-            )}
-
-            {/* Modals */}
-            <RenameModal
-                isOpen={modalState?.type === 'rename'}
-                onClose={() => setModalState(null)}
-                currentName={modalState?.file.name || ''}
-                onRename={(newName) => {
-                    if (modalState?.file) renameFile(modalState.file.id, newName);
-                }}
-            />
-
-            <DeleteConfirmModal
-                isOpen={modalState?.type === 'delete'}
-                onClose={() => setModalState(null)}
-                fileName={modalState?.file.name || ''}
-                onDelete={() => {
-                    if (modalState?.file) deleteFile(modalState.file.id);
-                }}
-            />
-
-            <NewFolderModal
-                isOpen={modalState?.type === 'new-folder'}
-                onClose={() => setModalState(null)}
-                onCreate={(name) => {
-                    if (modalState?.file) { // contextMenu.file here is essentially the trigger or we need parentId?
-                        // Issue: contextMenu.file might be a file inside the folder, or the folder itself?
-                        // If we right clicked *on a file*, we usually want to create in the *current column* (folder).
-                        // If we right click on blank space? We don't have that yet (header menu only).
-                        // The header context menu passes the *folder* of the column.
-                        // But we also have item context menu.
-                        // Let's assume we use the Header Context Menu for "New Folder".
-                        // Wait, Column.tsx has Header Menu. ColumnView.tsx has Item Context Menu.
-
-                        // We need to differentiate or allow new folder from item menu (creating in same dir).
-                        // Let's assume for now we want to support it. 
-                        // If we are passed a file, usage implies "in the same folder as this file".
-
-                        // BUT: contextMenu state in ColumnView stores `file: DriveFile`.
-                        // We need to know the *parent* ID.
-                        // If we right clicked a file, its parent is the column's folderId.
-                        // We can find the column that contains this file.
-
-                        // Optimization: Store columnId or folderId in contextMenu state? 
-                        // Or just look it up.
-                        const col = columns.find(c => c.items.some(i => i.id === modalState.file.id));
-                        if (col) {
-                            createFolder(name, col.folderId);
-                        }
-                    } else if (modalState?.folderId) {
-                        // Fallback if we add support for passing generic folderId
-                        createFolder(name, modalState.folderId);
-                    }
-                }}
-            />
         </DndContext>
     );
 }

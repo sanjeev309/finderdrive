@@ -198,7 +198,24 @@ export function useDriveAPI() {
         } catch (error) {
             console.error("Move failed", error);
         }
+
     }, [fetchAndCache]);
+
+    const copyFile = useCallback(async (fileId: string, targetFolderId: string, name?: string) => {
+        try {
+            const newFile = await import('../lib/drive').then(m => m.copyFile(fileId, targetFolderId, name));
+
+            // If target folder is visible, refresh it
+            const targetCol = useAppStore.getState().columns.find(c => c.folderId === targetFolderId);
+            if (targetCol) {
+                const newItems = [...targetCol.items, newFile];
+                useAppStore.getState().refreshFolder(targetFolderId, newItems);
+                setCachedFolder(targetFolderId, newItems);
+            }
+        } catch (error) {
+            console.error("Copy failed", error);
+        }
+    }, []);
 
     const renameFile = useCallback(async (fileId: string, newName: string) => {
         try {
@@ -406,5 +423,5 @@ export function useDriveAPI() {
         }
     }, []);
 
-    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, createFolder, searchDrive, openPath, uploadFiles, navigateToRoot };
+    return { loadFolder, openFolder, moveFile, renameFile, deleteFile, createFolder, searchDrive, openPath, uploadFiles, navigateToRoot, copyFile };
 }

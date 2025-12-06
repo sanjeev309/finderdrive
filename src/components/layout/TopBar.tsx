@@ -206,6 +206,8 @@ export function TopBar() {
                         </svg>
                     </button>
 
+                    {/* Preview Pane Toggle - REMOVED, moving to ColumnView */}
+
                     {/* Settings Button */}
                     <button className="rounded-full p-2 text-text-secondary hover:bg-black/5 dark:hover:bg-white/10">
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

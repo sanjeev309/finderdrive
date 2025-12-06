@@ -164,6 +164,33 @@ export const moveFile = async (fileId: string, newParentId: string, previousPare
     }
 };
 
+export const copyFile = async (fileId: string, parentId: string, name?: string): Promise<DriveFile> => {
+    const headers = getAuthHeaders();
+
+    const body: any = {
+        parents: [parentId]
+    };
+    if (name) {
+        body.name = name;
+    }
+
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Drive API Error: ${response.statusText}`);
+    }
+
+    const file = await response.json();
+    return {
+        ...file,
+        isFolder: file.mimeType === 'application/vnd.google-apps.folder'
+    } as DriveFile;
+};
+
 export const createFolder = async (name: string, parentId: string): Promise<DriveFile> => {
     const headers = getAuthHeaders();
 
