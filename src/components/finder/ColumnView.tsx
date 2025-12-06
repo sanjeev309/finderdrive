@@ -7,6 +7,8 @@ import { createPortal } from 'react-dom';
 import { FileRow } from './FileRow';
 import { DriveFile } from '../../types';
 import { ContextMenu } from '../common/ContextMenu';
+import { RenameModal } from '../modals/RenameModal';
+import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 
 export function ColumnView() {
     const { columns, activeDragId, setActiveDragId, selectFile, updateColumn } = useAppStore();
@@ -31,7 +33,10 @@ export function ColumnView() {
     const [activeColIndex, setActiveColIndex] = useState(0);
     const prevColumnsLength = useRef(columns.length);
 
-    // Sync active index to last column on load/change
+    // Modal State
+    const [modalState, setModalState] = useState<{ type: 'rename' | 'delete', file: DriveFile } | null>(null);
+
+    // Sync Active Column
     useEffect(() => {
         if (columns.length > prevColumnsLength.current) {
             setActiveColIndex(columns.length - 1);
@@ -72,6 +77,20 @@ export function ColumnView() {
                     const item = items[targetIndex];
                     selectFile(item.id, false);
                     updateColumn(activeColumn.id, { selectedItemId: item.id });
+                }
+            } else if (e.key === 'Enter') {
+                // Rename active item
+                if (activeColumn.selectedItemId) {
+                    const item = items.find(i => i.id === activeColumn.selectedItemId);
+                    if (item) setModalState({ type: 'rename', file: item });
+                }
+            }
+            else if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Delete active item (avoid Backspace for nav if we implement that? Finder cmd+backspace is delete. keeping simple for now)
+                // Actually Backspace is often navigating back. Drive uses Delete.
+                if (e.key === 'Delete' && activeColumn.selectedItemId) {
+                    const item = items.find(i => i.id === activeColumn.selectedItemId);
+                    if (item) setModalState({ type: 'delete', file: item });
                 }
             } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
@@ -227,18 +246,13 @@ export function ColumnView() {
                         {
                             label: 'Rename',
                             action: () => {
-                                const newName = prompt("Enter new name:", contextMenu.file.name);
-                                if (newName && newName !== contextMenu.file.name) {
-                                    renameFile(contextMenu.file.id, newName);
-                                }
+                                setModalState({ type: 'rename', file: contextMenu.file });
                             }
                         },
                         {
                             label: 'Delete',
                             action: () => {
-                                if (confirm(`Are you sure you want to delete "${contextMenu.file.name}"?`)) {
-                                    deleteFile(contextMenu.file.id);
-                                }
+                                setModalState({ type: 'delete', file: contextMenu.file });
                             },
                             danger: true
                         },
@@ -246,6 +260,25 @@ export function ColumnView() {
                     ]}
                 />
             )}
+
+            {/* Modals */}
+            <RenameModal
+                isOpen={modalState?.type === 'rename'}
+                onClose={() => setModalState(null)}
+                currentName={modalState?.file.name || ''}
+                onRename={(newName) => {
+                    if (modalState?.file) renameFile(modalState.file.id, newName);
+                }}
+            />
+
+            <DeleteConfirmModal
+                isOpen={modalState?.type === 'delete'}
+                onClose={() => setModalState(null)}
+                fileName={modalState?.file.name || ''}
+                onDelete={() => {
+                    if (modalState?.file) deleteFile(modalState.file.id);
+                }}
+            />
         </DndContext>
     );
 }
