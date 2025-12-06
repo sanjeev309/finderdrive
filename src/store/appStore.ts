@@ -91,6 +91,7 @@ export const useAppStore = create<AppState>()(
         {
             name: 'finderdrive-storage',
             partialize: (state) => ({ theme: state.theme }), // Only persist theme
+            version: 1, // Invalidates old storage to clear potential bad state
         }
     )
 );

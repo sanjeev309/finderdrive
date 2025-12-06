@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { listFiles, moveFile as moveFileAPI, renameFile as renameFileAPI, deleteFile as deleteFileAPI } from '../lib/drive';
 import { getCachedFolder, setCachedFolder, invalidateFolder } from '../lib/db';
@@ -96,39 +96,56 @@ export function useDriveAPI() {
     }, [removeColumnsAfter, addColumn, fetchAndCache]);
 
     // Initial Load of Root
+    const initialized = useRef(false);
+
     useEffect(() => {
-        // Check DIRECTLY against store state to avoid closure staleness in Strict Mode
+        if (!auth.isAuthenticated) return;
+
+        // Dedup check 1: Component-level ref
+        if (initialized.current) return;
+
+        // Dedup check 2: Store check & Cleanup
         const currentColumns = useAppStore.getState().columns;
+        const rootColumns = currentColumns.filter(c => c.folderId === 'root');
 
-        if (auth.isAuthenticated && currentColumns.length === 0) {
-            const initInfo = { id: 'root', name: 'My Drive' };
-            const columnId = crypto.randomUUID();
-
-            const newColumn: Column = {
-                id: columnId,
-                folderId: initInfo.id,
-                folderName: initInfo.name,
-                items: [],
-                selectedItemId: null,
-                isLoading: true,
-                loadTime: 0,
-                error: null,
-            };
-
-            // Async wrapper to handle cache
-            const init = async () => {
-                const cachedFiles = await getCachedFolder(initInfo.id);
-                if (cachedFiles) {
-                    newColumn.items = cachedFiles;
-                    newColumn.isLoading = false;
-                }
-                addColumn(newColumn);
-                fetchAndCache(initInfo.id, columnId);
-            };
-
-            init();
+        if (rootColumns.length > 1) {
+            // Safe Reset: If multiple roots exist, clear 'em.
+            useAppStore.getState().setColumns([]);
+        } else if (currentColumns.length > 0) {
+            // Already initialized validly
+            initialized.current = true;
+            return;
         }
-    }, [auth.isAuthenticated, addColumn, fetchAndCache]); // fetchAndCache stable
+
+        initialized.current = true;
+
+        const initInfo = { id: 'root', name: 'My Drive' };
+        const columnId = crypto.randomUUID();
+
+        const newColumn: Column = {
+            id: columnId,
+            folderId: initInfo.id,
+            folderName: initInfo.name,
+            items: [],
+            selectedItemId: null,
+            isLoading: true,
+            loadTime: 0,
+            error: null,
+        };
+
+        // Async wrapper to handle cache
+        const init = async () => {
+            const cachedFiles = await getCachedFolder(initInfo.id);
+            if (cachedFiles) {
+                newColumn.items = cachedFiles;
+                newColumn.isLoading = false;
+            }
+            addColumn(newColumn);
+            fetchAndCache(initInfo.id, columnId);
+        };
+
+        init();
+    }, [auth.isAuthenticated, addColumn, fetchAndCache]);
 
     const moveFile = useCallback(async (fileId: string, targetFolderId: string, sourceFolderId: string) => {
         try {
