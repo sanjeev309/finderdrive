@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# FinderDrive
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**macOS Finder-style Google Drive Client**
 
-Currently, two official plugins are available:
+FinderDrive is a modern, high-performance web client for Google Drive that replicates the intuitive **Column View** navigation of macOS Finder. Built with React and designed with a sleek glassmorphism aesthetic, it offers a fast and fluid way to browse and manage your cloud files.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+![FinderDrive UI Mockup](https://via.placeholder.com/800x450?text=FinderDrive+Column+View+UI) *Note: Add a real screenshot here later!*
 
-## React Compiler
+## 🚀 Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+-   **Column View Navigation**: Browse deep folder hierarchies horizontally without losing context, just like on a Mac.
+-   **Google Drive Integration**: Seamless access to your "My Drive" and "Shared with me" files.
+-   **Glassmorphism Design**: A premium, modern UI featuring frosted glass effects and smooth animations.
+-   **Instant Navigation**: Intelligent caching with IndexedDB ensures near-instant folder loads after the first visit.
+-   **File Management**: (In Progress) Rename, move, and organize files with intuitive context menus and drag-and-drop.
+-   **Secure**: Powered by Google OAuth 2.0 ensuring your credentials remain safe.
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+-   **Frontend**: React 19, TypeScript, Vite
+-   **Styling**: Tailwind CSS
+-   **State Management**: Zustand
+-   **API**: Google Drive API (gapi)
+-   **Persistence**: IndexedDB (idb)
+-   **Deployment**: Firebase Hosting
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🏁 Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Prerequisites
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+-   Node.js (v18 or higher)
+-   A Google Cloud Project with the **Google Drive API** enabled.
+-   An **OAuth 2.0 Client ID** configured in the Google Cloud Console.
+
+### Installation
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-username/finderdrive.git
+    cd finderdrive
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+
+### Configuration
+
+1.  Create a `.env` file in the root directory by copying the example:
+    ```bash
+    cp .env.example .env
+    ```
+
+2.  Open `.env` and configure your **Google Client ID**:
+    ```env
+    VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+    ```
+
+    > **Note:** Ensure your Google Cloud Console "Authorized JavaScript origins" includes `http://localhost:5173`.
+
+### Running Locally
+
+Start the development server:
+
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Visit `http://localhost:5173` to start browsing your Drive!
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📦 Deployment
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+For detailed instructions on deploying to **Firebase Hosting** or building for production, please refer to the [Deployment Guide](./deploy.md).
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to improve FinderDrive, please:
+
+1.  Fork the repo.
+2.  Create a feature branch (`git checkout -b feature/amazing-feature`).
+3.  Commit your changes.
+4.  Open a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
