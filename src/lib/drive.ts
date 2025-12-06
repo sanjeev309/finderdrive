@@ -1,11 +1,3 @@
-
-import { useAppStore } from '../store/appStore';
-import type { DriveFile } from '../types';
-
-/**
- * Helper to get the token and headers.
- * Throws if not authenticated.
- */
 const getAuthHeaders = () => {
     const stored = localStorage.getItem('driveFS_auth');
     if (!stored) throw new Error("No auth token found");
@@ -14,6 +6,24 @@ const getAuthHeaders = () => {
     return {
         'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json'
+    };
+};
+
+export const getUserInfo = async (): Promise<{ displayName: string; email: string; photoLink: string }> => {
+    const headers = getAuthHeaders();
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers
+    });
+
+    if (!response.ok) {
+        throw new Error(`User Info Error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+        displayName: data.name,
+        email: data.email,
+        photoLink: data.picture
     };
 };
 

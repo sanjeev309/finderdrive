@@ -26,8 +26,9 @@ export interface Column {
 }
 
 export interface Theme {
-    mode: 'light' | 'dark' | 'custom';
-    customAccentColor?: string;
+    mode: 'light' | 'dark';
+    accentColor?: string;
+    customAccentColor?: string; // keeping for backward compat during migration? No, let's use accentColor.
 }
 
 export interface AuthState {

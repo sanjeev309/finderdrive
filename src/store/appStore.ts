@@ -17,7 +17,7 @@ interface AppState {
 
     // Theme
     theme: Theme;
-    setTheme: (mode: Theme['mode']) => void;
+    setTheme: (theme: Partial<Theme>) => void;
 
     // Columns & Navigation
     columns: Column[];
@@ -81,11 +81,12 @@ export const useAppStore = create<AppState>()(
             },
 
             // Theme Initial State
-            theme: { mode: 'light' },
-            setTheme: (mode) => {
-                localStorage.setItem('driveFS_theme', mode);
-                set({ theme: { mode } });
-            },
+            theme: { mode: 'light', accentColor: '#3b82f6' },
+            setTheme: (updates) => set((state) => {
+                const newTheme = { ...state.theme, ...updates };
+                localStorage.setItem('driveFS_theme', JSON.stringify(newTheme));
+                return { theme: newTheme };
+            }),
 
             // Columns Initial State
             columns: [],
@@ -147,7 +148,31 @@ export const useAppStore = create<AppState>()(
         {
             name: 'finderdrive-storage',
             partialize: (state) => ({ theme: state.theme, showPreviewPane: state.showPreviewPane }), // Persist
-            version: 1,
+            version: 3, // Version 3: Decoupled accentColor
+            migrate: (persistedState: any, version: number) => {
+                if (version < 3) {
+                    // Normalize old states
+                    // If mode was 'custom', switch to 'dark' + custom color
+                    if (persistedState.theme?.mode === 'custom') {
+                        return {
+                            ...persistedState,
+                            theme: {
+                                mode: 'dark',
+                                accentColor: persistedState.theme.customAccentColor || '#8b5cf6'
+                            }
+                        };
+                    }
+                    // Else ensure accentColor exists
+                    return {
+                        ...persistedState,
+                        theme: {
+                            ...persistedState.theme,
+                            accentColor: persistedState.theme?.accentColor || '#3b82f6'
+                        }
+                    };
+                }
+                return persistedState;
+            }
         }
     )
 );

@@ -10,17 +10,44 @@ function App() {
 
   // Theme application
   useEffect(() => {
+    // 1. Apply Mode (Light/Dark)
     document.documentElement.setAttribute('data-theme', theme.mode);
     if (theme.mode === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme.mode]);
+
+    // 2. Apply Accent Color
+    if (theme.accentColor) {
+      document.documentElement.style.setProperty('--accent', theme.accentColor);
+      // For now, setting hover to same or could create variation if we had utils
+      document.documentElement.style.setProperty('--accent-hover', theme.accentColor);
+    } else {
+      document.documentElement.style.removeProperty('--accent');
+      document.documentElement.style.removeProperty('--accent-hover');
+    }
+  }, [theme]);
 
   // Auth Initialization
   useEffect(() => {
-    // 1. Handle OAuth Redirect
+    // 2. Check LocalStorage
+    const stored = getStoredToken();
+    if (stored) {
+      setAuth({
+        isAuthenticated: true,
+        accessToken: stored.access_token,
+        expiresAt: stored.expiresAt
+      });
+      // Fetch fresh user info
+      import('./lib/drive').then(({ getUserInfo }) => {
+        getUserInfo().then(user => {
+          setAuth({ user });
+        }).catch(console.error);
+      });
+    }
+
+    // 1. Handle OAuth Redirect (run after checking storage logic to handle hash param priority)
     if (window.location.hash) {
       const token = parseAuthTokenFromUrl(window.location.hash);
       if (token) {
@@ -31,17 +58,14 @@ function App() {
           expiresAt: Date.now() + (parseInt(token.expires_in) * 1000)
         });
         window.history.replaceState(null, '', window.location.pathname); // Clean URL
-      }
-    }
 
-    // 2. Check LocalStorage
-    const stored = getStoredToken();
-    if (stored) {
-      setAuth({
-        isAuthenticated: true,
-        accessToken: stored.access_token,
-        expiresAt: stored.expiresAt
-      });
+        // Fetch user info immediately for new login
+        import('./lib/drive').then(({ getUserInfo }) => {
+          getUserInfo().then(user => {
+            setAuth({ user });
+          }).catch(console.error);
+        });
+      }
     }
   }, [setAuth]);
 
