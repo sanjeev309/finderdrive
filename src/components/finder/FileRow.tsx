@@ -11,6 +11,7 @@ interface FileRowProps {
     style?: React.CSSProperties; // For react-window compatibility
 }
 
+import { useRef, useEffect } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 export function FileRow({ file, isSelected, onClick, onDoubleClick, onContextMenu, style }: FileRowProps) {
@@ -25,10 +26,19 @@ export function FileRow({ file, isSelected, onClick, onDoubleClick, onContextMen
         data: file
     });
 
+    const elementRef = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (isSelected && elementRef.current) {
+            elementRef.current.scrollIntoView({ block: 'nearest' });
+        }
+    }, [isSelected]);
+
     // Combine refs
     const setRefs = (node: HTMLElement | null) => {
         setNodeRef(node);
         setDroppableNodeRef(node);
+        elementRef.current = node;
     };
     return (
         <div

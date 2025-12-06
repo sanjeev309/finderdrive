@@ -8,13 +8,15 @@ import { ContextMenu } from '../common/ContextMenu';
 interface ColumnProps {
     column: ColumnType;
     index: number;
+    isActive?: boolean;
+    onActivate?: () => void;
     onOpenContextMenu: (e: React.MouseEvent, file: DriveFile) => void;
 }
 
 import { useDroppable } from '@dnd-kit/core';
 import { clsx } from 'clsx';
 
-export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
+export function Column({ column, index, isActive, onActivate, onOpenContextMenu }: ColumnProps) {
     const { selectFile, updateColumn } = useAppStore();
     const { openFolder } = useDriveAPI();
     const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
@@ -31,6 +33,7 @@ export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
     });
 
     const handleFileClick = (file: DriveFile) => {
+        onActivate?.(); // Ensure activation
         selectFile(file.id, false);
         updateColumn(column.id, { selectedItemId: file.id });
 
@@ -46,7 +49,14 @@ export function Column({ column, index, onOpenContextMenu }: ColumnProps) {
     };
 
     return (
-        <div className="flex h-full w-[250px] flex-col border-r border-border bg-bg-secondary flex-shrink-0 animate-slideInRight" data-index={index}>
+        <div
+            className={clsx(
+                "flex h-full w-[250px] flex-col border-r border-border bg-bg-secondary flex-shrink-0 animate-slideInRight transition-colors",
+                isActive ? "bg-bg-primary/50" : "opacity-90 hover:opacity-100"
+            )}
+            onClick={() => onActivate?.()}
+            data-index={index}
+        >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs font-medium text-text-secondary">
                 <span className="truncate flex-1" title={column.folderName}>{column.folderName} ({column.items.length})</span>

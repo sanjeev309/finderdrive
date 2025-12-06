@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { clsx } from 'clsx';
 import { useAppStore } from '../../store/appStore';
 import { useDriveAPI } from '../../hooks/useDriveAPI';
 import type { DriveFile } from '../../types';
@@ -19,7 +20,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function TopBar() {
-    const { auth, logout } = useAppStore();
+    const { auth, logout, columns, removeColumnsAfter } = useAppStore();
     const { searchDrive, openPath, uploadFiles } = useDriveAPI();
 
     const [query, setQuery] = useState('');
@@ -100,7 +101,31 @@ export function TopBar() {
                         <img src="/logo.png" alt="FinderDrive" className="h-8 w-8 object-contain" />
                         <span className="text-xl font-semibold text-text-primary tracking-tight">FinderDrive</span>
                     </div>
-                    {/* Breadcrumb items will go here */}
+                </div>
+
+                {/* Breadcrumbs */}
+                <div className="flex items-center overflow-x-auto scrollbar-hide mask-linear-fade">
+                    {columns.map((col, index) => (
+                        <div key={col.id} className="flex items-center flex-shrink-0 animate-fadeIn">
+                            {index > 0 && (
+                                <svg className="h-4 w-4 text-text-tertiary mx-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            )}
+                            <button
+                                onClick={() => removeColumnsAfter(index)}
+                                className={clsx(
+                                    "px-2 py-1 rounded text-sm max-w-[150px] truncate transition-colors select-none",
+                                    index === columns.length - 1
+                                        ? "text-text-primary font-medium"
+                                        : "text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10"
+                                )}
+                                title={col.folderName}
+                            >
+                                {col.folderName}
+                            </button>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Center: Search */}
